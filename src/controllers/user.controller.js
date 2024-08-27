@@ -105,9 +105,7 @@ const loginUser = asyncHandler(async (req,res) =>{
    // send cookie
 
    const {username,email,password} = req.body
-   console.log(req.body)
-   console.log(username)
-   console.log(email)
+   
 
    //check username or email
    if(!username && !email){
