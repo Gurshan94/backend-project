@@ -8,8 +8,83 @@ import {uploadOnCloudinary} from "../utils/cloudinary.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
+    const { limit = 10, query, sortBy, sortType, userId } = req.query
+    
+    const pipeline=[]
+
+    if(query){
+        pipeline.push({
+            $search:{
+                index:"search-videos",
+                text:{
+                    query: query,
+                    path: ["title","description"]
+                }
+            }
+        })
+    }
+    if(userId){
+        if(!isValidObjectId(userId)){
+            throw new ApiError(400,"not a valid user")
+        }
+       pipeline.push({
+        $match:{
+            owner: new mongoose.Types.ObjectId(userId)
+        }
+        })
+    }
+    pipeline.push({
+        $match:{
+            isPublished:false
+            }
+        })
+
+    if(sortBy&&sortType){
+        pipeline.push({
+            $sort:{
+                [sortBy]:sortType==='asc'?1:-1
+            }
+        })
+    }else{
+        pipeline.push({
+            $sort:{createdAt:-1}
+        })
+    }
+
+    pipeline.push({
+      $lookup:{
+        from:"users",
+        localField:"owner",
+        foreignField:"_id",
+        as:"ownerDetails",
+        pipeline:[
+            {
+                $project:{
+                    username: 1,
+                    avatar :1
+                }
+            }
+        ]
+      }
+    },
+    {
+        $unwind:"$ownerDetails"
+    }
+)
+pipeline.push({
+    $limit:limit
+})
+
+const videoAggregate = await Video.aggregate(pipeline)
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            videoAggregate,
+            "videos fetched successfully"
+        )
+    )
 })
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description} = req.body
