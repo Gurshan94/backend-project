@@ -4,7 +4,7 @@ import {User} from "../models/user.models.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import {uploadOnCloudinary,deleteOnCloudinary} from "../utils/cloudinary.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -120,8 +120,8 @@ const publishAVideo = asyncHandler(async (req, res) => {
         title,
         description,
         duration:videoFile.duration,
-        videoFile:videoFile.url,
-        thumbnail:thumbnail.url,
+        videoFile: videoFile.url,
+        thumbnail: thumbnail.url,
         owner: req.user?._id,
         isPublished: false
     })
@@ -135,7 +135,6 @@ const publishAVideo = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, video, "Video uploaded successfully"))
 })
-
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 
@@ -246,9 +245,70 @@ const getVideoById = asyncHandler(async (req, res) => {
 })
 
 const updateVideo = asyncHandler(async (req, res) => {
+    const {title, description} = req.body
     const { videoId } = req.params
-    //TODO: update video details like title, description, thumbnail
 
+    //TODO: update video details like title, description, thumbnail
+    if(!isValidObjectId(videoId)){
+        throw new ApiError(400,"videoId is not valid")
+    }
+    if(!title&&description){
+        throw new ApiError(400,"title and description are required:")
+    }
+
+    const thumbnailLocalPath=req.file?.path
+
+    if(!thumbnailLocalPath){
+        throw new ApiError(400,"file does not exist")
+    }
+    
+    const video = await Video.findById(videoId)
+
+    if(!video){
+        throw(500,"something went wrong while updating")
+    }
+    if (video?.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError(
+            400,
+            "You can't edit this video as you are not the owner"
+        );
+    }
+
+    const thumbnailToDelete =video.thumbnail
+
+    const thumbnail=await uploadOnCloudinary(thumbnailLocalPath)
+
+    if(!thumbnail.url){
+        throw new ApiError(500,"thumbnail upload failed")
+    }
+
+    const updatedVideo =await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set:{
+                title:title,
+                description:description,
+                thumbnail:thumbnail.url
+            }
+        },
+        { new:true}
+    )
+
+    if (!updatedVideo) {
+        throw new ApiError(500, "Failed to update video please try again");
+    }
+
+    if (updatedVideo) {
+        await deleteOnCloudinary(thumbnailToDelete);
+    }
+
+    return res
+    .status(200)
+    .json(
+        200,
+        video,
+        "video updated successfully"
+    )
 })
 
 const deleteVideo = asyncHandler(async (req, res) => {
