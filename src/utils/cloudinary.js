@@ -40,4 +40,5 @@ const deleteOnCloudinary = async (public_id, resource_type="image") => {
     }
 };
 
+
 export {uploadOnCloudinary,deleteOnCloudinary}
