@@ -10,7 +10,7 @@ import {uploadOnCloudinary,deleteOnCloudinary} from "../utils/cloudinary.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
-    const { limit = 10, query, sortBy, sortType, userId } = req.query
+    const { page=1, limit = 10, query, sortBy, sortType, userId } = req.query
     
     const pipeline=[]
 
@@ -37,7 +37,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
     }
     pipeline.push({
         $match:{
-            isPublished:false
+            isPublished:true
             }
         })
 
@@ -73,17 +73,21 @@ const getAllVideos = asyncHandler(async (req, res) => {
         $unwind:"$ownerDetails"
     }
 )
-pipeline.push({
-    $limit:limit
-})
+const videoAggregate = Video.aggregate(pipeline)
 
-const videoAggregate = await Video.aggregate(pipeline)
+const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10)
+};
+
+const video = await Video.aggregatePaginate(videoAggregate, options);
+
     return res
     .status(200)
     .json(
         new ApiResponse(
             200,
-            videoAggregate,
+            video,
             "videos fetched successfully"
         )
     )
